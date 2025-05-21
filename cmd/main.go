@@ -124,7 +124,6 @@ func prepareData(client *mongo.Client, coll *mongo.Collection) {
 			BookYear:    "1843",
 		},
 	}
-
 	// This syntax helps us iterate over arrays. It behaves similar to Python
 	// However, range always returns a tuple: (idx, elem). You can ignore the idx
 	// by using _.

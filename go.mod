@@ -1,6 +1,6 @@
 module github.com/CAPS-Cloud/exercises
 
-go 1.22.0
+go 1.23
 
 require (
 	github.com/labstack/echo/v4 v4.12.0
