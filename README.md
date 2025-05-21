@@ -1,26 +1,26 @@
-## Exercise 1 for Cloud Computing ##
+## Exercise 1 for Cloud Computing
 
-### Summer Semester 2025 ###
+### Summer Semester 2025
 
-#### More enquiries, please contact me ####
+#### More enquiries, please contact me
 
-Dear students, 
+Dear students,
 
 Let's embark in this journey exploring the development of a simple, yet very dynamic webpage. During this time, we will combine cloud standard technologies (Golang) and emerging ones (HTMX) to discover what it takes to deploy an application in the Cloud. From a simple binary running to using FaaS for efficiency and cost optimization.
 
-In this first week, we will explore developing certain views using templating and content swap in the browser. All the heavy-lifting is done by HTMX, you just need to adjust the contents and attributes of the *HTML tags* to signal how it should react.
+In this first week, we will explore developing certain views using templating and content swap in the browser. All the heavy-lifting is done by HTMX, you just need to adjust the contents and attributes of the _HTML tags_ to signal how it should react.
 
 In this code, there is already quite a bit of examples on how you can do it: from the usage of templates, rendering upon request, to interacting with the database to maintain your data.
 
-In the topic of database: there is a bunch of different databases, as there is *database engines*. For simplicity, we will use a NoSQL database called MongoDB. Why NoSQL? Well, the name implies Non-relational database, i.e., here we don't care that much about those peski relations between tables, and foreing keys, and all that technical jargon. Basically, MongoDB works like a big storage for "JSON" documents (or more known as Key-value stores a.k.a KV-stores). That means, for this exercise, we want something simple yet standard in Cloud environments, just to get dabble with them and explore what we can do.
+In the topic of database: there is a bunch of different databases, as there is _database engines_. For simplicity, we will use a NoSQL database called MongoDB. Why NoSQL? Well, the name implies Non-relational database, i.e., here we don't care that much about those peski relations between tables, and foreing keys, and all that technical jargon. Basically, MongoDB works like a big storage for "JSON" documents (or more known as Key-value stores a.k.a KV-stores). That means, for this exercise, we want something simple yet standard in Cloud environments, just to get dabble with them and explore what we can do.
 
-### What is the task? ###
+### What is the task?
 
 As you have seen from the exercise slides or recording, we will be exploring developing a web-front for a Book Store. For this task, you will need to complete:
 
-1. Finish the implementation for the "Authors" view by: implementing the HTML template, and rendering the content upon a request to `/authors`
-2. Finish the implementation for the "Years" view by: implementing the HTML template, and rendering the content upon a request to `/years`
-3. Implement the methods for:
+1.  Finish the implementation for the "Authors" view by: implementing the HTML template, and rendering the content upon a request to `/authors`
+2.  Finish the implementation for the "Years" view by: implementing the HTML template, and rendering the content upon a request to `/years`
+3.  Implement the methods for:
 
     3.1. `GET`. The request path should be `/api/books`, and it should return an array of objects, in the following form:
 
@@ -33,7 +33,7 @@ As you have seen from the exercise slides or recording, we will be exploring dev
                 year: "1900",
         },{...}]
 
-    3.2. `POST`. The request path should be `/api/books`, and it should return the proper status code upon **correct** completion. The body of the request looks as follows: 
+    3.2. `POST`. The request path should be `/api/books`, and it should return the proper status code upon **correct** completion. The body of the request looks as follows:
 
         request.body = {
                 id: "asd34343",            // This is not the MongoID
@@ -47,7 +47,7 @@ As you have seen from the exercise slides or recording, we will be exploring dev
     3.3 `UPDATE`. The request path should be `/api/books/:id`, and it should return the proper status code upon **correct** completion, where `:id` is the `id` given during the `GET` operation, which is **not the MongoID**. The body of the request looks as follows:
 
         request.body = {
-                id: "asd34343",  // for updates, this field in the body is optional 
+                id: "asd34343",  // for updates, this field in the body is optional
                 title: "The book name",
                 author: "The book author",
                 edition: "1st Edition",
@@ -59,9 +59,9 @@ As you have seen from the exercise slides or recording, we will be exploring dev
 
     3.5 We will make at least **6** different tests to these endpoints with random (but stable data) to make sure the workflow is correct. If everything is correct, together with the rendering functionality, you will achieve 90 points. Remember that you need **70 %** to pass each assignment.
 
-### Requirements and Test Scenarios ###
+### Requirements and Test Scenarios
 
-#### Requirements ####
+#### Requirements
 
 1. The database **cannot** have duplicate entries. This means, a new book that shares the same id, name, author, year, and pages, with an existing entry on the database (excluding the MongoID) must not result on a new addition to the database.
 2. The `POST` request must return congruent status codes. For a creation of a new object on the database upon request, you can return only valid status codes. Please look at the links given in the code.
@@ -70,13 +70,12 @@ As you have seen from the exercise slides or recording, we will be exploring dev
 5. The `DELETE` request must delete only one entry from the database based on the given reference of ID. A subsequent `GET` must return all entries except those previously deleted.
 6. The `GET` request to `/authors` and `/years` must return a valid response from the Rendering Engine.
 
-#### Tests ####
+#### Tests
 
 1. The grade of the assignment consist of an average of three tests.
-    
-2. Two `GET` operations to fetch the HTML code for the *Authors* and *Years* view
+2. Two `GET` operations to fetch the HTML code for the _Authors_ and _Years_ view
 
-### What do you need for this assignment? ###
+### What do you need for this assignment?
 
 Basically **Golang 1.22**. You can download and install it following [these](https://go.dev/doc/install) instructions.
 
@@ -94,4 +93,4 @@ The other component you need to run your exercise is a database. Since we are us
 
 Without further ado,
 
-#### Happy Coding! ####
+#### Happy Coding!

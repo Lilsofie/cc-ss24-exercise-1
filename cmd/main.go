@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"slices"
 	"time"
 
@@ -23,12 +24,12 @@ import (
 // More on these "tags" like `bson:"_id,omitempty"`: https://go.dev/wiki/Well-known-struct-tags
 type BookStore struct {
 	MongoID     primitive.ObjectID `bson:"_id,omitempty"`
-	ID          string
-	BookName    string
-	BookAuthor  string
-	BookEdition string
-	BookPages   string
-	BookYear    string
+	ID          string             `json:"ID" bson:"ID"`
+	BookName    string             `json:"BookName" bson:"BookName"`
+	BookAuthor  string             `json:"BookAuthor,omitempty" bson:"BookAuthor,omitempty"`
+	BookEdition string             `json:"BookEdition,omitempty" bson:"BookEdition,omitempty"`
+	BookPages   string             `json:"BookYear,omitempty" bson:"BookYear,omitempty"`
+	BookYear    string             `json:"BookPages,omitempty" bson:"BookPages,omitempty"`
 }
 
 // Wraps the "Template" struct to associate a necessary method
@@ -46,6 +47,10 @@ type Template struct {
 // You can also read Golang's documentation on their templating
 // https://pkg.go.dev/text/template
 func loadTemplates() *Template {
+	if os.Getenv("SKIP_TEMPLATES") == "true" {
+		return &Template{tmpl: nil}
+	}
+
 	return &Template{
 		tmpl: template.Must(template.ParseGlob("views/*.html")),
 	}
@@ -165,15 +170,80 @@ func findAllBooks(coll *mongo.Collection) []map[string]interface{} {
 
 	var ret []map[string]interface{}
 	for _, res := range results {
+		if res.MongoID.IsZero() || res.ID == "" || res.BookName == "" {
+			continue
+		}
 		ret = append(ret, map[string]interface{}{
-			"ID":          res.MongoID.Hex(),
-			"BookName":    res.BookName,
-			"BookAuthor":  res.BookAuthor,
-			"BookEdition": res.BookEdition,
-			"BookPages":   res.BookPages,
+			"mongo_id": res.MongoID.Hex(),
+			"id":       res.ID,
+			"title":    res.BookName,
+			"author":   res.BookAuthor,
+			"edition":  res.BookEdition,
+			"pages":    res.BookPages,
+			"year":     res.BookYear,
 		})
 	}
 
+	return ret
+}
+
+func findAuthors(coll *mongo.Collection) []map[string]interface{} {
+	cursor, err := coll.Find(context.TODO(), bson.D{{}})
+	if err != nil {
+		panic(err)
+	}
+
+	var results []BookStore
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		panic(err)
+	}
+
+	authorBooks := make(map[string][]string)
+
+	for _, res := range results {
+		if res.MongoID.IsZero() || res.ID == "" || res.BookName == "" {
+			continue
+		}
+		authorBooks[res.BookAuthor] = append(authorBooks[res.BookAuthor], res.BookName)
+	}
+
+	var ret []map[string]interface{}
+	for author, books := range authorBooks {
+		ret = append(ret, map[string]interface{}{
+			"author": author,
+			"books":  books,
+		})
+	}
+	return ret
+}
+
+func findYears(coll *mongo.Collection) []map[string]interface{} {
+	cursor, err := coll.Find(context.TODO(), bson.D{{}})
+	if err != nil {
+		panic(err)
+	}
+
+	var results []BookStore
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		panic(err)
+	}
+
+	yearBooks := make(map[string][]string)
+
+	for _, res := range results {
+		if res.MongoID.IsZero() || res.ID == "" || res.BookName == "" {
+			continue
+		}
+		yearBooks[res.BookYear] = append(yearBooks[res.BookYear], res.BookName)
+	}
+
+	var ret []map[string]interface{}
+	for year, books := range yearBooks {
+		ret = append(ret, map[string]interface{}{
+			"year":  year,
+			"books": books,
+		})
+	}
 	return ret
 }
 
@@ -228,11 +298,13 @@ func main() {
 	})
 
 	e.GET("/authors", func(c echo.Context) error {
-		return c.NoContent(http.StatusNoContent)
+		authors := findAuthors(coll)
+		return c.Render(200, "authors", authors)
 	})
 
 	e.GET("/years", func(c echo.Context) error {
-		return c.NoContent(http.StatusNoContent)
+		years := findYears(coll)
+		return c.Render(200, "years", years)
 	})
 
 	e.GET("/search", func(c echo.Context) error {
@@ -252,6 +324,145 @@ func main() {
 	e.GET("/api/books", func(c echo.Context) error {
 		books := findAllBooks(coll)
 		return c.JSON(http.StatusOK, books)
+	})
+
+	e.POST("/api/books", func(c echo.Context) error {
+		var book BookStore
+		if err := c.Bind(&book); err != nil {
+			return c.String(http.StatusBadRequest, "Invalid request")
+		}
+
+		if book.ID == "" || book.BookName == "" {
+			return c.String(http.StatusBadRequest, "Missing required fields: id and title")
+		}
+
+		filter := bson.M{
+			"$or": []bson.M{
+				{"ID": book.ID},
+				{"BookName": book.BookName},
+			},
+		}
+
+		count, err := coll.CountDocuments(context.TODO(), filter)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, "DB error")
+		}
+		if count > 0 {
+			return c.String(http.StatusConflict, "Duplicate entry")
+		}
+
+		_, err = coll.InsertOne(context.TODO(), book)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, "Insert error")
+		}
+
+		return c.NoContent(http.StatusCreated)
+
+	})
+
+	e.PUT("/api/books/:id", func(c echo.Context) error {
+		id := c.Param("id")
+		var book BookStore
+		if err := c.Bind(&book); err != nil {
+			return c.String(http.StatusBadRequest, "Invalid request")
+		}
+
+		filter := bson.M{"ID": id}
+		update := bson.M{"$set": bson.M{
+			"BookName":    book.BookName,
+			"BookAuthor":  book.BookAuthor,
+			"BookEdition": book.BookEdition,
+			"BookPages":   book.BookPages,
+			"BookYear":    book.BookYear,
+		}}
+
+		res, err := coll.UpdateOne(context.TODO(), filter, update)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, "Update error")
+		}
+		if res.MatchedCount == 0 {
+			return c.String(http.StatusNotFound, "Book not found")
+		}
+
+		return c.NoContent(http.StatusOK)
+	})
+
+	e.PUT("/api/books/:id", func(c echo.Context) error {
+		id := c.Param("id")
+		var book BookStore
+		if err := c.Bind(&book); err != nil {
+			return c.String(http.StatusBadRequest, "Invalid request")
+		}
+
+		if book.ID != "" && book.ID != id {
+			return c.String(http.StatusBadRequest, "Book ID in body doesn't match URL parameter")
+		}
+
+		filter := bson.M{"ID": id}
+		var existingBook BookStore
+		err := coll.FindOne(context.TODO(), filter).Decode(&existingBook)
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				return c.String(http.StatusNotFound, "Book not found")
+			}
+			return c.String(http.StatusInternalServerError, "Database error")
+		}
+
+		if book.BookName != "" && book.BookName != existingBook.BookName {
+			nameFilter := bson.M{
+				"BookName": book.BookName,
+				"ID":       bson.M{"$ne": id}, // exclude the current book
+			}
+			count, err := coll.CountDocuments(context.TODO(), nameFilter)
+			if err != nil {
+				return c.String(http.StatusInternalServerError, "Database error")
+			}
+			if count > 0 {
+				return c.String(http.StatusConflict, "Book name already exists")
+			}
+		}
+
+		updateFields := bson.M{}
+		if book.BookName != "" {
+			updateFields["BookName"] = book.BookName
+		}
+		if book.BookAuthor != "" {
+			updateFields["BookAuthor"] = book.BookAuthor
+		}
+		if book.BookEdition != "" {
+			updateFields["BookEdition"] = book.BookEdition
+		}
+		if book.BookPages != "" {
+			updateFields["BookPages"] = book.BookPages
+		}
+		if book.BookYear != "" {
+			updateFields["BookYear"] = book.BookYear
+		}
+
+		update := bson.M{"$set": updateFields}
+		res, err := coll.UpdateOne(context.TODO(), filter, update)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, "Update error: "+err.Error())
+		}
+		if res.MatchedCount == 0 {
+			return c.String(http.StatusNotFound, "Book not found")
+		}
+
+		return c.NoContent(http.StatusOK)
+	})
+
+	e.DELETE("/api/books/:id", func(c echo.Context) error {
+		id := c.Param("id")
+
+		res, err := coll.DeleteOne(context.TODO(), bson.M{"ID": id})
+		if err != nil {
+			return c.String(http.StatusInternalServerError, "Delete error")
+		}
+		if res.DeletedCount == 0 {
+			return c.String(http.StatusNotFound, "Book not found")
+		}
+
+		return c.NoContent(http.StatusOK)
 	})
 
 	// We start the server and bind it to port 3030. For future references, this
